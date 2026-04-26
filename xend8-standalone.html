@@ -427,22 +427,42 @@
             padding: 16px;
             border-radius: 16px;
             font-size: 0.9rem;
+            line-height: 1.6;
+            border: 2px solid transparent;
         }
 
         .test-result.show {
-            animation: fadeUp 0.4s;
+            animation: slideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         .test-result.success {
-            background: rgba(46, 213, 115, 0.1);
-            border: 1px solid rgba(46, 213, 115, 0.3);
+            background: rgba(46, 213, 115, 0.15);
+            border-color: rgba(46, 213, 115, 0.5);
             color: #2ed573;
+            box-shadow: 0 0 15px rgba(46, 213, 115, 0.2), inset 0 0 10px rgba(46, 213, 115, 0.05);
+        }
+
+        .test-result.success strong {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
 
         .test-result.error {
-            background: rgba(255, 107, 107, 0.1);
-            border: 1px solid rgba(255, 107, 107, 0.3);
+            background: rgba(255, 107, 107, 0.15);
+            border-color: rgba(255, 107, 107, 0.5);
             color: #ff6b6b;
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.2), inset 0 0 10px rgba(255, 107, 107, 0.05);
+        }
+
+        .test-result.error strong {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
 
         .progress-bar {
@@ -558,6 +578,31 @@
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-10px); }
             75% { transform: translateX(10px); }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(46, 213, 115, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(46, 213, 115, 0.8); }
+        }
+
+        .progress-fill.animating {
+            animation: pulse 0.6s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
         }
 
         @media (max-width: 420px) {
@@ -754,10 +799,16 @@
                         <option value="low">Low</option>
                     </select>
 
-                    <button class="xend-button tg-button sweep-hover" onclick="showToast('Demo: SMTP testing not available in standalone mode')">
+                    <div class="progress-bar" id="progressBar" style="display: none;">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+
+                    <div class="test-result" id="testResult" style="display: none;"></div>
+
+                    <button class="xend-button tg-button sweep-hover" id="sendTestBtn" onclick="handleSendTest()">
                         ꩜ Send Test
                     </button>
-                    <button class="xend-button sweep-hover">
+                    <button class="xend-button sweep-hover" onclick="clearSmtpForm()">
                         Clear Form
                     </button>
                 </div>
@@ -993,11 +1044,113 @@ Begin your first operation below.</textarea>
             }, 600);
         }
 
+        function validateEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+
+        function handleSendTest() {
+            const recipientEmail = document.getElementById('recipientEmail').value;
+            const senderName = document.getElementById('senderName').value;
+            const subject = document.getElementById('emailSubject').value;
+            const message = document.getElementById('emailMessage').value;
+            const emailError = document.getElementById('emailError');
+
+            // Validate email
+            if (!validateEmail(recipientEmail)) {
+                emailError.classList.add('show');
+                return;
+            }
+
+            // Validate required fields
+            if (!subject || !message) {
+                showToast('Please fill in subject and message');
+                return;
+            }
+
+            emailError.classList.remove('show');
+
+            // Show progress bar and animate
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const sendTestBtn = document.getElementById('sendTestBtn');
+            const testResult = document.getElementById('testResult');
+
+            progressBar.style.display = 'block';
+            progressFill.style.width = '10%';
+            sendTestBtn.disabled = true;
+            sendTestBtn.style.opacity = '0.6';
+            testResult.style.display = 'none';
+
+            let progress = 10;
+            const progressInterval = setInterval(() => {
+                if (progress < 80) {
+                    progress += Math.random() * 20;
+                    progressFill.style.width = progress + '%';
+                }
+            }, 300);
+
+            // Simulate sending after a delay
+            setTimeout(() => {
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+
+                // Simulate success
+                const isSuccess = Math.random() > 0.1; // 90% success rate for demo
+
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                    progressFill.style.width = '0%';
+
+                    if (isSuccess) {
+                        const timestamp = new Date().toLocaleTimeString();
+                        const messageId = 'msg_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                        testResult.className = 'test-result show success';
+                        testResult.style.display = 'block';
+                        testResult.innerHTML = `
+                            <strong>✓ Email Sent Successfully</strong><br/>
+                            ID: ${messageId}<br/>
+                            Time: ${timestamp}
+                        `;
+                        showToast('Test email sent successfully!');
+                    } else {
+                        testResult.className = 'test-result show error';
+                        testResult.style.display = 'block';
+                        testResult.innerHTML = `
+                            <strong>✗ Failed to Send</strong><br/>
+                            SMTP connection error or invalid configuration<br/>
+                            Time: ${new Date().toLocaleTimeString()}
+                        `;
+                        showToast('Failed to send test email');
+                    }
+
+                    sendTestBtn.disabled = false;
+                    sendTestBtn.style.opacity = '1';
+                }, 500);
+            }, 2000);
+        }
+
+        function clearSmtpForm() {
+            document.getElementById('recipientEmail').value = '';
+            document.getElementById('senderName').value = '✗ᴇɴᴅ8 Mailer';
+            document.getElementById('emailSubject').value = 'Test Delivery from ✗ᴇɴᴅ8';
+            document.getElementById('emailMessage').value = '';
+            document.getElementById('emailPriority').value = 'normal';
+            document.getElementById('emailError').classList.remove('show');
+            document.getElementById('testResult').style.display = 'none';
+            showToast('Form cleared');
+        }
+
         // Attach sweep hover effects
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.sweep-hover').forEach(btn => {
                 btn.addEventListener('mouseenter', () => {
                     triggerSweep(btn);
+                });
+                btn.addEventListener('click', (e) => {
+                    if (!btn.disabled) {
+                        triggerSweep(btn);
+                    }
                 });
             });
 
@@ -1007,35 +1160,64 @@ Begin your first operation below.</textarea>
                 });
                 card.addEventListener('click', (e) => {
                     const target = e.target;
-                    if (target.tagName !== 'BUTTON' && target.tagName !== 'A' && !target.closest('button') && !target.closest('a')) {
+                    if (target.tagName !== 'BUTTON' && target.tagName !== 'A' && !target.closest('button') && !target.closest('a') && !target.closest('input') && !target.closest('textarea') && !target.closest('select')) {
                         triggerSweep(card);
                     }
                 });
             });
 
-            // Logo click handler
-            document.getElementById('logoContainer').addEventListener('click', () => {
-                showSection('home');
+            // Logo click handler with flash effect
+            const logoContainer = document.getElementById('logoContainer');
+            logoContainer.addEventListener('click', () => {
+                logoContainer.classList.add('flash-active');
+                setTimeout(() => {
+                    logoContainer.classList.remove('flash-active');
+                    showSection('home');
+                }, 300);
             });
 
             // Deploy URL input handler
             const deployUrlInput = document.getElementById('deployUrl');
-            deployUrlInput.addEventListener('input', (e) => {
-                const val = e.target.value;
-                const generatedUrl = document.getElementById('generatedUrl');
-                if (val) {
-                    const base = val.replace(/\/$/, '');
-                    generatedUrl.textContent = `${base}/api/telegram-webhook`;
-                } else {
-                    generatedUrl.textContent = 'Generated webhook appears here';
-                }
-            });
+            if (deployUrlInput) {
+                deployUrlInput.addEventListener('input', (e) => {
+                    const val = e.target.value;
+                    const generatedUrl = document.getElementById('generatedUrl');
+                    if (val) {
+                        const base = val.replace(/\/$/, '');
+                        generatedUrl.textContent = `${base}/api/telegram-webhook`;
+                    } else {
+                        generatedUrl.textContent = 'Generated webhook appears here';
+                    }
+                });
+            }
 
             // Email validation
             const recipientInput = document.getElementById('recipientEmail');
-            recipientInput.addEventListener('input', () => {
-                document.getElementById('emailError').classList.remove('show');
-            });
+            if (recipientInput) {
+                recipientInput.addEventListener('input', () => {
+                    document.getElementById('emailError').classList.remove('show');
+                });
+            }
+
+            // Clear logs button
+            const clearLogsBtn = document.querySelector('[onclick*="clearLogs"]');
+            if (clearLogsBtn) {
+                clearLogsBtn.addEventListener('click', () => {
+                    const logsContainer = document.querySelector('#smtpSection .xend-card:nth-child(3) div');
+                    if (logsContainer) {
+                        logsContainer.innerHTML = '<div style="padding: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #666;">No recent activity...</div>';
+                    }
+                });
+            }
+
+            // Refresh config button
+            const refreshBtn = document.querySelector('[onclick*="Refresh"]');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', () => {
+                    triggerSweep(refreshBtn);
+                    showToast('Config refreshed');
+                });
+            }
         });
     </script>
 </body>
